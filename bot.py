@@ -192,16 +192,6 @@ async def skin(interaction: discord.Interaction):
     await interaction.response.send_message('', file=discord.File('media/male01.png'))
 
 
-@client.tree.command()
-async def goodmorning_debug(interaction: discord.Interaction):
-    """ Good morning Morioh Cho! """
-    voice_client = await interaction.guild.voice_channels[1].connect()
-    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('media/good_morning_morioh_cho.mp3'))
-    voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
-
-    await interaction.response.send_message('Good morning Morioh Cho!')
-
-
 ########################## VOICE COMMANDS DEFINITION ################################
 
 
