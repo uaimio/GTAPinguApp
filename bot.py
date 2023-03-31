@@ -72,14 +72,12 @@ class CustomCommandTree(discord.app_commands.CommandTree):
         super().__init__(client, fallback_to_global=fallback_to_global)
 
     async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
-        if interaction.channel_id == CHANNEL_ID:
-            return True
-        else:
-            await interaction.response.send_message('I comandi vanno scritti nel canale apposito.', ephemeral=True, delete_after=10.0)
+        if interaction.channel_id != CHANNEL_ID:
+            await interaction.response.send_message('I comandi vanno scritti nel canale apposito.', ephemeral=True)
             return False
+        elif interaction.channel_id == CHANNEL_ID:
+            return True
         
-        # return await super().interaction_check(interaction)
-
 
 class GTAPinguAppBot(discord.Client):
     """ GTAPinguAppBot implementation of a discord Client. """
@@ -88,11 +86,25 @@ class GTAPinguAppBot(discord.Client):
         super().__init__(intents=intents, **options)
         self.volume = 30.0
         self.tree = CustomCommandTree(self)
+        self.daily_morio_done = False
+
+    async def daily_operations_setter(self):
+        await self.wait_until_ready()
+
+        while not self.is_closed():
+            await asyncio.sleep(86400) # 86400 seconds in a day
+            
+            self.daily_morio_done = False
+            await self.change_presence(activity=discord.Game(name=choice(ACTIVITIES)))
 
     async def setup_hook(self):
+
         # this copies the global commands over to your guild
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
+
+        # create the background task and run it in the background
+        self.bg_task = self.loop.create_task(self.daily_operations_setter())
     
     async def on_ready(self):
         print(f'{self.user} has connected to Discord! ID: {self.user.id}.')
@@ -100,6 +112,17 @@ class GTAPinguAppBot(discord.Client):
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         """ Voice event handler """
+
+        # automatic disconnect the bot if it's alone in a voice channel
+        if self.voice_clients and self.voice_clients[0].channel.members == [self.user]:
+            await self.voice_clients.pop().disconnect()
+            return
+        
+
+        # return if the update refers to the bot itself
+        if self.user.id == member._user.id:
+            return
+
         # random autokick from a voice channel
         if member.id in USER_AUTOKICK and after.channel is not None:
             if randint(100, 105) == 104:
@@ -108,10 +131,19 @@ class GTAPinguAppBot(discord.Client):
                     allowed_mentions=discord.AllowedMentions(everyone=True, users=True, roles=True))
                 
             return
-                
-        # automatic disconnect if alone in a voice channel
-        if self.voice_clients and self.voice_clients[0].channel.members == [self.user]:
-            await self.voice_clients.pop().disconnect()
+        
+        
+        # play a good morning if it has not been already done
+        if before.channel is None and after.channel is not None and not self.daily_morio_done:
+            voice_client = await after.channel.connect() if not client.voice_clients else client.voice_clients[0]
+            if voice_client.is_playing():
+                voice_client.stop()
+            
+            source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('media/good_morning_morioh_cho.mp3'))
+            voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
+
+            self.daily_morio_done = True
+            await member.guild.text_channels[2].send('Good morning Morioh Cho!')
             return
         
     async def on_message(self, message):
@@ -160,6 +192,16 @@ async def skin(interaction: discord.Interaction):
     await interaction.response.send_message('', file=discord.File('media/male01.png'))
 
 
+@client.tree.command()
+async def goodmorning_debug(interaction: discord.Interaction):
+    """ Good morning Morioh Cho! """
+    voice_client = await interaction.guild.voice_channels[1].connect()
+    source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('media/good_morning_morioh_cho.mp3'))
+    voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
+
+    await interaction.response.send_message('Good morning Morioh Cho!')
+
+
 ########################## VOICE COMMANDS DEFINITION ################################
 
 
@@ -184,6 +226,7 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
         await interaction.response.send_message('Il bot è già attivo in un altro canale vocale.')
 
     else:
+        await interaction.response.defer(ephemeral=False, thinking=True)
         player = await YTDLSource.from_url(url, volume=client.volume/100, loop=client.loop, stream=False)
 
         voice_client = await interaction.user.voice.channel.connect() if not client.voice_clients else client.voice_clients[0]
@@ -192,7 +235,7 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
 
         voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
 
-        await interaction.response.send_message(f'In riproduzione {player.title}\n{url}')
+        await interaction.followup.send(f'In riproduzione {player.title}\nhttps://youtu.be/{player.data.get("id")}')
 
 
 @client.tree.command()
@@ -249,8 +292,8 @@ async def resume(interaction: discord.Interaction):
 
 @client.tree.command()
 async def stop(interaction: discord.Interaction):
-    """ Stoppa la musica e caccia il bot! """
-    if interaction.client.voice_clients is None:
+    """ Stoppa la musica e disconnette il bot! """
+    if not interaction.client.voice_clients:
         await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
     else:
         await interaction.client.voice_clients.pop().disconnect()

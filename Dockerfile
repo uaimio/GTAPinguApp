@@ -17,6 +17,6 @@ WORKDIR /app
 RUN chmod 0644 settings/garb-coll.sh
 RUN crontab settings/garb-coll.sh
 
-RUN pip3 install -r requirements.txt
+RUN pip3 install -r requirements.txt --upgrade
 
 CMD cron && python3 bot.py

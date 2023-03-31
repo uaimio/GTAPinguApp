@@ -2,7 +2,9 @@
 __pycache__/
 .vscode/
 .venv/
-botold.py
-botnew.py
+
+# Ignoring downloaded webm files
 *.webm
+
+# Ignoring debug's local settings
 local_settings.json
