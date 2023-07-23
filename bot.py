@@ -101,12 +101,9 @@ class GTAPinguAppBot(discord.Client):
         await self.voice_clients.pop().disconnect()
 
     async def setup_hook(self):
-
         # this copies the global commands over to your guild
         self.tree.copy_global_to(guild=MY_GUILD)
         await self.tree.sync(guild=MY_GUILD)
-
-        # create the background task and run it in the background
     
     async def on_ready(self):
         print(f'{self.user} has connected to Discord! ID: {self.user.id}.')
