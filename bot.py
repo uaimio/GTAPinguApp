@@ -17,7 +17,7 @@ import json
 import yt_dlp 
 
 from random import randint, choice
-from time import time
+from time import localtime, strftime
 
 ########################## AUDIO CLASS DEFINITION #######################
 yt_dlp.utils.bug_reports_message = lambda: ''
@@ -53,29 +53,22 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
 ########################## CONSTANTS DEFINITION #########################
 
+CONSTANTS = json.load(open("settings/constants.json"))
+
 # GTAPinguApp Id
-MY_GUILD = discord.Object(id=366579728855072779)
+MY_GUILD = discord.Object(id=CONSTANTS.get("MY_GUILD_ID"))
 
-# comandi_bot channel id
-CHANNEL_ID = 433262905954402316
-
-# user id autokick (uaimio, romaid, gerardo)
-USER_AUTOKICK = ()#(366545185582219265, 785831233904574464, 633402880350617614)
-
-# activity set
-ACTIVITIES = ('misurarsi l\'ego', 'parlare del più e del meno', 'volare', 'discutere col muro', 'convincerti di no')
-
-CRYPTOSTRING = f''
 ########################## CLIENT CLASS DEFINITION ######################
 class CustomCommandTree(discord.app_commands.CommandTree):
     def __init__(self, client: discord.Client, *, fallback_to_global: bool = True):
         super().__init__(client, fallback_to_global=fallback_to_global)
 
+    global CONSTANTS
     async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
-        if interaction.channel_id != CHANNEL_ID:
+        if interaction.channel_id != CONSTANTS.get("CHANNEL_ID"):
             await interaction.response.send_message('I comandi vanno scritti nel canale apposito.', ephemeral=True)
             return False
-        elif interaction.channel_id == CHANNEL_ID:
+        elif interaction.channel_id == CONSTANTS.get("CHANNEL_ID"):
             return True
         
 
@@ -86,16 +79,26 @@ class GTAPinguAppBot(discord.Client):
         super().__init__(intents=intents, **options)
         self.volume = 30.0
         self.tree = CustomCommandTree(self)
-        self.daily_morio_done = False
+        self.morio_cho_playing = None
 
-    async def daily_operations_setter(self):
+    async def play_morio_cho(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        """ Task for Morio-Cho play """
         await self.wait_until_ready()
+        global CONSTANTS
+        CONSTANTS['MORIO_CHO_DAILY_DONE'] = True
 
-        while not self.is_closed():
-            await asyncio.sleep(86400) # 86400 seconds in a day
-            
-            self.daily_morio_done = False
-            await self.change_presence(activity=discord.Game(name=choice(ACTIVITIES)))
+        await asyncio.sleep(5)
+        mentions = ', '.join([user.mention for user in after.channel.members])
+        await member.guild.text_channels[3].send(f'{mentions} Good morning Morioh Cho!')
+        
+        voice_client = await after.channel.connect() if not client.voice_clients else client.voice_clients[0]
+        if voice_client.is_playing():
+            voice_client.stop()
+
+        source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('media/good_morning_morioh_cho.mp3'))
+        voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
+        await asyncio.sleep(15)
+        await self.voice_clients.pop().disconnect()
 
     async def setup_hook(self):
 
@@ -104,11 +107,10 @@ class GTAPinguAppBot(discord.Client):
         await self.tree.sync(guild=MY_GUILD)
 
         # create the background task and run it in the background
-        self.bg_task = self.loop.create_task(self.daily_operations_setter())
     
     async def on_ready(self):
         print(f'{self.user} has connected to Discord! ID: {self.user.id}.')
-        await self.change_presence(activity=discord.Game(name=choice(ACTIVITIES)))
+        await self.change_presence(activity=discord.Game(name=choice(CONSTANTS.get("ACTIVITIES"))))
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         """ Voice event handler """
@@ -117,33 +119,29 @@ class GTAPinguAppBot(discord.Client):
         if self.voice_clients and self.voice_clients[0].channel.members == [self.user]:
             await self.voice_clients.pop().disconnect()
             return
-        
 
         # return if the update refers to the bot itself
         if self.user.id == member._user.id:
             return
-
+        
+        global CONSTANTS
         # random autokick from a voice channel
-        if member.id in USER_AUTOKICK and after.channel is not None:
+        if member.id in CONSTANTS.get("USER_AUTOKICK") and after.channel is not None:
             if randint(100, 105) == 104:
                 await member.move_to(None)
                 await member.guild.text_channels[3].send(f'{member.mention} SEI STATO SCAMMATO DA PEPPINO \'O MALAVITOSO',
                     allowed_mentions=discord.AllowedMentions(everyone=True, users=True, roles=True))
                 
             return
-        
-        
-        # play a good morning if it has not been already done
-        if before.channel is None and after.channel is not None and not self.daily_morio_done:
-            voice_client = await after.channel.connect() if not client.voice_clients else client.voice_clients[0]
-            if voice_client.is_playing():
-                voice_client.stop()
-            
-            source = discord.PCMVolumeTransformer(discord.FFmpegPCMAudio('media/good_morning_morioh_cho.mp3'))
-            voice_client.play(source, after=lambda e: print(f'Player error: {e}') if e else None)
 
-            self.daily_morio_done = True
-            await member.guild.text_channels[2].send('Good morning Morioh Cho!')
+        # play a good morning if it has not been already done and if it is enabled
+        if before.channel is None and after.channel is not None and not CONSTANTS.get("MORIO_CHO_DAILY_DONE") and CONSTANTS.get("MORIO_CHO_ACTIVATION_STATUS"):
+            hour = int(strftime("%H", localtime()))
+            # do it only between 6 AM to 12 AM
+            if hour >= 6 and hour < 12:
+                self.morio_cho_playing = self.loop.create_task(self.play_morio_cho(member, before, after))
+                await self.morio_cho_playing
+            
             return
         
     async def on_message(self, message):
@@ -159,14 +157,14 @@ client = GTAPinguAppBot(intents=intents)
 @client.tree.command()
 async def help(interaction: discord.Interaction):
     """ Funziona? """
-    if interaction.channel_id == CHANNEL_ID:
+    if interaction.channel_id == CONSTANTS.get("CHANNEL_ID"):
         await interaction.response.send_message(f'Peffò')
         
 
 @client.tree.command()
 async def pls(interaction: discord.Interaction):
     """ Nice ____? """
-    if interaction.channel_id == CHANNEL_ID:
+    if interaction.channel_id == CONSTANTS.get("CHANNEL_ID"):
         await interaction.response.send_message(eval(CRYPTOSTRING))
 
 
@@ -185,6 +183,17 @@ async def insegnaci(interaction: discord.Interaction):
 async def diciotto(interaction: discord.Interaction):
     await interaction.response.send_message(f'https://www.youtube.com/watch?v=_IXfPxe7j6o')
 
+@client.tree.command()
+async def statusmoriocho(interaction: discord.Interaction):
+    """ Indica lo stato (attivo o non attivo) di Good Morning Morio Cho """
+    global CONSTANTS
+    await interaction.response.send_message(f'Good morning Morio-Cho {"è attivo" if CONSTANTS.get("MORIO_CHO_ACTIVATION_STATUS") else "non è attivo"}')
+
+@client.tree.command()
+async def togglemoriocho(interaction: discord.Interaction):
+    """ Attiva e disattiva Good Morning Morio Cho """
+    global CONSTANTS
+    await interaction.response.send_message(f'Good morning Morio-Cho ora è {"attivo" if CONSTANTS.get("MORIO_CHO_ACTIVATION_STATUS") else "non attivo"}')
 
 @client.tree.command()
 async def skin(interaction: discord.Interaction):
@@ -214,6 +223,9 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
 
     elif client.voice_clients and client.voice_clients[0].channel != interaction.user.voice.channel:
         await interaction.response.send_message('Il bot è già attivo in un altro canale vocale.')
+
+    elif client.morio_cho_playing is not None and not client.morio_cho_playing.done():
+        await interaction.response.send_message('Non è possibile riprodurre ora.')
 
     else:
         await interaction.response.defer(ephemeral=False, thinking=True)
@@ -247,7 +259,7 @@ async def volume(interaction: discord.Interaction, volume: str):
     elif not client.voice_clients:
         await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
 
-    elif client.voice_clients[0].channel == interaction.user.voice.channel and client.voice_clients[0].is_playing():
+    elif client.voice_clients[0].channel == interaction.user.voice.channel:  # and client.voice_clients[0].is_playing():
         client.voice_clients[0].source.volume = client.volume / 100
         await interaction.response.send_message(f'Volume della musica settato a {client.volume:0.0f}!')
 
@@ -289,18 +301,33 @@ async def stop(interaction: discord.Interaction):
         await interaction.client.voice_clients.pop().disconnect()
         await interaction.response.send_message('Riproduzione interrotta!')
 
+################################ DAILY SIGNAL HANDLER ###################################
+def daily_operations_handler(signum, frame):
+    print(signum)
+    global CONSTANTS
+    CONSTANTS["MORIO_CHO_DAILY_DONE"] = False
 
-########################## TOKEN RETRIEVING AND RUN ####################################
-from os import getenv
-from base64 import b64decode
+################################ TOKEN RETRIEVING AND RUN ###############################
+if __name__ == '__main__':
+    from os import getenv
+    from base64 import b64decode
 
-TOKEN = getenv('GTPTOKEN')
-CRYPTOSTRING = b64decode(getenv('PLS_STRING')).decode() if getenv('PLS_STRING') is not None else None
+    TOKEN = getenv('GTPTOKEN')
+    CRYPTOSTRING = b64decode(getenv('PLS_STRING')).decode() if getenv('PLS_STRING') is not None else None
 
-if TOKEN is None or CRYPTOSTRING is None:
-    with open('local_settings.json') as f:
-        local_settings = json.load(f)
-        TOKEN = local_settings.get('GTPTOKEN')
-        CRYPTOSTRING = b64decode(local_settings.get('PLS_STRING')).decode()
+    if TOKEN is not None and CRYPTOSTRING is not None:
+        import signal
+        signal.signal(signal.SIGUSR1, daily_operations_handler)
 
-client.run(TOKEN)
+    else:
+        try:
+            local_settings = json.load(open('local_settings.json', 'r'))
+            TOKEN = local_settings.get('GTPTOKEN')
+            CRYPTOSTRING = b64decode(local_settings.get('PLS_STRING')).decode()
+        except IOError as e:
+            print("TOKEN E CRYPTOSTRING NON DEFINITE")
+            print(e)
+            exit(1)
+
+    client.run(TOKEN)
+    
