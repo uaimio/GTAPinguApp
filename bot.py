@@ -205,27 +205,29 @@ async def skin(interaction: discord.Interaction):
 @app_commands.describe(url='URL della canzone', volume='volume del bot con valori da 1 a 100')
 async def play(interaction: discord.Interaction, url: str, volume: str = ''):
     """ Suona la musica! """
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+
     if volume:
         try:
             client.volume = float(volume)
         except ValueError:
-            await interaction.response.send_message('Valore del volume non valido.')
+            await interaction.followup.send('Valore del volume non valido.')
             return
 
     if not 1 <= client.volume <= 100: # volume < 0.1 or volume > 1:
-        await interaction.response.send_message('Valore del volume non compreso tra 1 e 100.')
+        await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
 
     elif not interaction.user.voice:
-        await interaction.response.send_message('Non sei connesso ad un canale vocale.')
+        await interaction.followup.send('Non sei connesso ad un canale vocale.')
 
     elif client.voice_clients and client.voice_clients[0].channel != interaction.user.voice.channel:
-        await interaction.response.send_message('Il bot è già attivo in un altro canale vocale.')
+        await interaction.followup.send('Il bot è già attivo in un altro canale vocale.')
 
     elif client.morio_cho_playing is not None and not client.morio_cho_playing.done():
-        await interaction.response.send_message('Non è possibile riprodurre ora.')
+        await interaction.followup.send('Non è possibile riprodurre ora.')
 
     else:
-        await interaction.response.defer(ephemeral=False, thinking=True)
         player = await YTDLSource.from_url(url, volume=client.volume/100, loop=client.loop, stream=False)
 
         voice_client = await interaction.user.voice.channel.connect() if not client.voice_clients else client.voice_clients[0]
@@ -241,62 +243,74 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
 @app_commands.describe(volume='volume del bot con valori tra 1 e 100')
 async def volume(interaction: discord.Interaction, volume: str):
     """ Setta il volume della musica! """
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+
     try:
         client.volume = float(volume)
     except ValueError:
-        await interaction.response.send_message('Valore del volume non valido.')
+        await interaction.followup.send('Valore del volume non valido.')
         return
     
     if not 1 <= client.volume <= 100: # volume < 0.1 or volume > 1:
-        await interaction.response.send_message('Valore del volume non compreso tra 1 e 100.')
+        await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
     
     elif not interaction.user.voice:
-        await interaction.response.send_message('Non sei connesso ad un canale vocale.')
+        await interaction.followup.send('Non sei connesso ad un canale vocale.')
 
     elif not client.voice_clients:
-        await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
+        await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
 
     elif client.voice_clients[0].channel == interaction.user.voice.channel:  # and client.voice_clients[0].is_playing():
         client.voice_clients[0].source.volume = client.volume / 100
-        await interaction.response.send_message(f'Volume della musica settato a {client.volume:0.0f}!')
+        await interaction.followup.send(f'Volume della musica settato a {client.volume:0.0f}!')
 
 
 @client.tree.command()
 async def pause(interaction: discord.Interaction):
     """ Mette in pausa la musica! """
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+
     if interaction.user.voice is None:
-        await interaction.response.send_message('Non sei connesso ad un canale vocale.')
+        await interaction.followup.send('Non sei connesso ad un canale vocale.')
 
     elif not client.voice_clients:
-        await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
+        await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
 
     elif client.voice_clients[0].channel == interaction.user.voice.channel and client.voice_clients[0].is_playing():
         client.voice_clients[0].pause()
-        await interaction.response.send_message('Musica messa in pausa!')
+        await interaction.followup.send('Musica messa in pausa!')
 
 
 @client.tree.command()
 async def resume(interaction: discord.Interaction):
     """ Riparte la musica! """
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+
     if interaction.user.voice is None:
-        await interaction.response.send_message('Non sei connesso ad un canale vocale.')
+        await interaction.followup.send('Non sei connesso ad un canale vocale.')
 
     elif not interaction.client.voice_clients:
-        await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
+        await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
 
     elif interaction.client.voice_clients[0].channel == interaction.user.voice.channel and interaction.client.voice_clients[0].is_paused():
         interaction.client.voice_clients[0].resume()
-        await interaction.response.send_message('Musica ripartita!')
+        await interaction.followup.send('Musica ripartita!')
 
 
 @client.tree.command()
 async def stop(interaction: discord.Interaction):
     """ Stoppa la musica e disconnette il bot! """
+
+    await interaction.response.defer(ephemeral=False, thinking=True)
+
     if not interaction.client.voice_clients:
-        await interaction.response.send_message('Il bot non è connesso ad alcun canale vocale.')
+        await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
     else:
         await interaction.client.voice_clients.pop().disconnect()
-        await interaction.response.send_message('Riproduzione interrotta!')
+        await interaction.followup.send('Riproduzione interrotta!')
 
 ################################ DAILY SIGNAL HANDLER ###################################
 def daily_operations_handler(signum, frame):
