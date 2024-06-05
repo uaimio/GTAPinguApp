@@ -3,7 +3,8 @@
     "CHANNEL_ID": 433262905954402316,
     "USER_AUTOKICK_OLD": [366545185582219265, 785831233904574464, 633402880350617614],
     "USER_AUTOKICK": [],
-    "ACTIVITIES": ["misurarsi l'ego", "parlare del più e del meno", "volare", "discutere col muro", "convincerti di no"],
+    "ACTIVITIES": ["siamo ragazzi feroci"],
+    "ACTIVITIES_OLD": ["misurarsi l'ego", "parlare del più e del meno", "volare", "discutere col muro", "convincerti di no"],
     "MORIO_CHO_ACTIVATION_STATUS": true,
     "MORIO_CHO_DAILY_DONE": false
 }
