@@ -14,7 +14,8 @@ from discord import app_commands
 
 import asyncio
 import json
-import yt_dlp 
+import yt_dlp
+import logging
 
 from random import randint, choice
 from time import localtime, strftime
@@ -314,7 +315,8 @@ async def stop(interaction: discord.Interaction):
 
 ################################ DAILY SIGNAL HANDLER ###################################
 def daily_operations_handler(signum, frame):
-    print(signum)
+    logger = logging.getLogger('discord')
+    logger.info(f'Signum received: {signum}')
     global CONSTANTS
     CONSTANTS["MORIO_CHO_DAILY_DONE"] = False
 
