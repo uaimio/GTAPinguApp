@@ -199,8 +199,18 @@ async def skin(interaction: discord.Interaction):
     await interaction.response.send_message('', file=discord.File('media/male01.png'))
 
 
-########################## VOICE COMMANDS DEFINITION ################################
+########################## MINECRAFT COMMANDS DEFINITION ################################
 
+# @client.tree.command()
+# async def startminecraftserver(interaction: discord.Interaction):
+#     """ Avvia il server minecraft """
+#     response = requests.get('http://127.0.0.1:5000/')
+#     if response.status_code == 200:
+#         await interaction.response.send_message('Server minecraft correttamente avviato.')
+#     else:
+#         await interaction.response.send_message('Server minecraft non avviato.')
+
+########################## VOICE COMMANDS DEFINITION ################################
 
 @client.tree.command()
 @app_commands.describe(url='URL della canzone', volume='volume del bot con valori da 1 a 100')
@@ -323,14 +333,17 @@ def daily_operations_handler(signum, frame):
 ################################ TOKEN RETRIEVING AND RUN ###############################
 if __name__ == '__main__':
     from os import getenv
-    from base64 import b64decode
 
     TOKEN = getenv('GTPTOKEN')
-    CRYPTOSTRING = b64decode(getenv('PLS_STRING')).decode() if getenv('PLS_STRING') is not None else None
+    CRYPTOSTRING = getenv('PLS_STRING')
 
     if TOKEN is not None and CRYPTOSTRING is not None:
         import signal
         signal.signal(signal.SIGUSR1, daily_operations_handler)
+        print(CRYPTOSTRING)
+
+        from base64 import b64decode
+        CRYPTOSTRING = b64decode(CRYPTOSTRING).decode()
 
     else:
         try:
