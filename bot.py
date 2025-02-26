@@ -7,6 +7,7 @@
 GTAPinguApp, bot del canale Discord GTA PINGU.
 
 @author: uaimio
+@author: Peenguino
 """
 
 import discord
