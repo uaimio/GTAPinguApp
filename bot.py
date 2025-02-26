@@ -218,15 +218,15 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
     """ Suona la musica! """
 
     await interaction.response.defer(ephemeral=False, thinking=True)
-
+    currVolume = 0
     if volume:
         try:
-            client.volume = float(volume)
+            currVolume = float(volume)
         except ValueError:
             await interaction.followup.send('Valore del volume non valido.')
             return
 
-    if not 1 <= client.volume <= 100: # volume < 0.1 or volume > 1:
+    if not 1 <= currVolume <= 100: # volume < 0.1 or volume > 1:
         await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
 
     elif not interaction.user.voice:
@@ -239,6 +239,7 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
         await interaction.followup.send('Non è possibile riprodurre ora.')
 
     else:
+        client.volume = currVolume if currVolume != 0 else client.volume
         player = await YTDLSource.from_url(url, volume=client.volume/100, loop=client.loop, stream=False)
 
         voice_client = await interaction.user.voice.channel.connect() if not client.voice_clients else client.voice_clients[0]
@@ -256,14 +257,14 @@ async def volume(interaction: discord.Interaction, volume: str):
     """ Setta il volume della musica! """
 
     await interaction.response.defer(ephemeral=False, thinking=True)
-
+    currVolume = 0
     try:
-        client.volume = float(volume)
+        currVolume = float(volume)
     except ValueError:
         await interaction.followup.send('Valore del volume non valido.')
         return
     
-    if not 1 <= client.volume <= 100: # volume < 0.1 or volume > 1:
+    if not 1 <= currVolume <= 100: # volume < 0.1 or volume > 1:
         await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
     
     elif not interaction.user.voice:
@@ -273,6 +274,7 @@ async def volume(interaction: discord.Interaction, volume: str):
         await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
 
     elif client.voice_clients[0].channel == interaction.user.voice.channel:  # and client.voice_clients[0].is_playing():
+        client.volume = currVolume if currVolume != 0 else client.volume
         client.voice_clients[0].source.volume = client.volume / 100
         await interaction.followup.send(f'Volume della musica settato a {client.volume:0.0f}!')
 
