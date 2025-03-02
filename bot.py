@@ -83,6 +83,41 @@ class GTAPinguAppBot(discord.Client):
         self.tree = CustomCommandTree(self)
         self.morio_cho_playing = None
 
+    async def extracted_volume(self, interaction: discord.Interaction, volume: str) -> None:
+        await interaction.response.defer(ephemeral=False, thinking=True)
+        if volume:
+            try:
+                volume = float(volume)
+            except ValueError:
+                msg = 'Valore del volume non valido.'
+                await interaction.followup.send(msg)
+                raise Exception(msg)
+        else:
+            volume = self.volume
+
+        if not 1 <= volume <= 100: # volume < 0.1 or volume > 1:
+            msg = 'Valore del volume non compreso tra 1 e 100.'
+            await interaction.followup.send(msg)
+            raise Exception(msg)
+
+        elif not interaction.user.voice:
+            msg = 'Non sei connesso ad un canale vocale.'
+            await interaction.followup.send()
+            raise Exception(msg)
+
+        elif self.voice_clients and self.voice_clients[0].channel != interaction.user.voice.channel:
+            msg = 'Il bot è già attivo in un altro canale vocale.'
+            await interaction.followup.send(msg)
+            raise Exception(msg)
+
+        elif self.morio_cho_playing is not None and not self.morio_cho_playing.done():
+            msg = 'Non è possibile riprodurre ora.'
+            await interaction.followup.send(msg)
+            raise Exception(msg)
+            
+        self.volume = volume if volume != 0 else self.volume
+
+
     async def play_morio_cho(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         """ Task for Morio-Cho play """
         await self.wait_until_ready()
@@ -141,7 +176,7 @@ class GTAPinguAppBot(discord.Client):
                 self.morio_cho_playing = self.loop.create_task(self.play_morio_cho(member, before, after))
                 await self.morio_cho_playing
             
-            return
+            return        
         
     async def on_message(self, message):
         pass
@@ -217,39 +252,15 @@ async def skin(interaction: discord.Interaction):
 @app_commands.describe(url='URL della canzone', volume='volume del bot con valori da 1 a 100')
 async def play(interaction: discord.Interaction, url: str, volume: str = ''):
     """ Suona la musica! """
+    await client.extracted_volume(interaction, volume)
+    player = await YTDLSource.from_url(url, volume=client.volume / 100, loop=client.loop, stream=False)
 
-    await interaction.response.defer(ephemeral=False, thinking=True)
-    currVolume = 0
-    if volume:
-        try:
-            currVolume = float(volume)
-        except ValueError:
-            await interaction.followup.send('Valore del volume non valido.')
-            return
+    voice_client = await interaction.user.voice.channel.connect() if not client.voice_clients else client.voice_clients[0]
+    if voice_client.is_playing():
+        voice_client.stop()
 
-    if not 1 <= currVolume <= 100: # volume < 0.1 or volume > 1:
-        await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
-
-    elif not interaction.user.voice:
-        await interaction.followup.send('Non sei connesso ad un canale vocale.')
-
-    elif client.voice_clients and client.voice_clients[0].channel != interaction.user.voice.channel:
-        await interaction.followup.send('Il bot è già attivo in un altro canale vocale.')
-
-    elif client.morio_cho_playing is not None and not client.morio_cho_playing.done():
-        await interaction.followup.send('Non è possibile riprodurre ora.')
-
-    else:
-        client.volume = currVolume if currVolume != 0 else client.volume
-        player = await YTDLSource.from_url(url, volume=client.volume/100, loop=client.loop, stream=False)
-
-        voice_client = await interaction.user.voice.channel.connect() if not client.voice_clients else client.voice_clients[0]
-        if voice_client.is_playing():
-            voice_client.stop()
-
-        voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
-
-        await interaction.followup.send(f'In riproduzione {player.title}\nhttps://youtu.be/{player.data.get("id")}')
+    voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
+    await interaction.followup.send(f'In riproduzione {player.title}\nhttps://youtu.be/{player.data.get("id")}')
 
 
 @client.tree.command()
@@ -257,27 +268,9 @@ async def play(interaction: discord.Interaction, url: str, volume: str = ''):
 async def volume(interaction: discord.Interaction, volume: str):
     """ Setta il volume della musica! """
 
-    await interaction.response.defer(ephemeral=False, thinking=True)
-    currVolume = 0
-    try:
-        currVolume = float(volume)
-    except ValueError:
-        await interaction.followup.send('Valore del volume non valido.')
-        return
-    
-    if not 1 <= currVolume <= 100: # volume < 0.1 or volume > 1:
-        await interaction.followup.send('Valore del volume non compreso tra 1 e 100.')
-    
-    elif not interaction.user.voice:
-        await interaction.followup.send('Non sei connesso ad un canale vocale.')
-
-    elif not client.voice_clients:
-        await interaction.followup.send('Il bot non è connesso ad alcun canale vocale.')
-
-    elif client.voice_clients[0].channel == interaction.user.voice.channel:  # and client.voice_clients[0].is_playing():
-        client.volume = currVolume if currVolume != 0 else client.volume
-        client.voice_clients[0].source.volume = client.volume / 100
-        await interaction.followup.send(f'Volume della musica settato a {client.volume:0.0f}!')
+    await client.extracted_volume(interaction, volume)
+    client.voice_clients[0].source.volume = client.volume / 100
+    await interaction.followup.send(f'Volume della musica settato a {client.volume:0.0f}!')
 
 
 @client.tree.command()
@@ -336,6 +329,7 @@ def daily_operations_handler(signum, frame):
 ################################ TOKEN RETRIEVING AND RUN ###############################
 if __name__ == '__main__':
     from os import getenv
+    from base64 import b64decode
 
     TOKEN = getenv('GTPTOKEN')
     CRYPTOSTRING = getenv('PLS_STRING')
@@ -345,7 +339,6 @@ if __name__ == '__main__':
         signal.signal(signal.SIGUSR1, daily_operations_handler)
         print(CRYPTOSTRING)
 
-        from base64 import b64decode
         CRYPTOSTRING = b64decode(CRYPTOSTRING).decode()
 
     else:
