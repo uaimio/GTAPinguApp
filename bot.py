@@ -22,7 +22,7 @@ from random import randint, choice
 from time import localtime, strftime
 
 ########################## AUDIO CLASS DEFINITION #######################
-yt_dlp.utils.bug_reports_message = lambda: ''
+#yt_dlp.utils.bug_reports_message = lambda: ''
 
 ytdl_settings = json.load(open('settings/ytdl_format_options.json'))
 
