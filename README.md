@@ -9,16 +9,10 @@ An averagely useful bot for Discord.
     git clone https://github.com/uaimio/GTAPinguApp.git
     cd GTAPinguApp
     ```
-- Create the virtual environment and activate it:
+- Create the virtual environment:
 
     ```
     python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-- Install the dependencies listed in `requirements.txt` using pip:
-
-    ```
-    pip install -r requirements.txt
     ```
 - Add the environment variables to the venv, specifically in `.venv/bin/activate`:
 
@@ -26,6 +20,12 @@ An averagely useful bot for Discord.
     # --- context
     export GTPTOKEN="YOUR_TOKEN"
     export PLS_STRING="YOUR_BASE64_ENCODED_PYTHON_CODE"
+    ```
+- Activate the venv and install the dependencies listed in `requirements.txt` using pip:
+
+    ```
+    source .venv/bin/activate
+    pip install -r requirements.txt
     ```
 - Set execution permissions for the routine scripts:
 
